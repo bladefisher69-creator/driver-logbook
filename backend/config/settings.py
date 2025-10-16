@@ -134,13 +134,16 @@ SIMPLE_JWT = {
 }
 
 if DEBUG:
-    # During local development, Vite may run on 5173 or 5174; allow both so browser preflights succeed.
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
         'http://localhost:5174',
     ]
 else:
-    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+    CORS_ALLOWED_ORIGINS = [
+        'https://driver-logbook-zeta.vercel.app',
+        'https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app',
+        'https://driver-logbook-27j6a5smp-bladefisher69-creators-projects.vercel.app',
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
 
