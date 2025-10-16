@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+from corsheaders.defaults import default_headers
 
 load_dotenv()
 
@@ -147,7 +148,8 @@ else:
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_HEADERS = list(default_headers := [
+# Add this right after CORS_ALLOWED_ORIGINS and CORS_ALLOW_CREDENTIALS
+CORS_ALLOW_HEADERS = list(default_headers) + [
     'accept',
     'accept-encoding',
     'authorization',
@@ -157,7 +159,7 @@ CORS_ALLOW_HEADERS = list(default_headers := [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-])
+]
 
 CORS_ALLOW_METHODS = [
     'DELETE',
