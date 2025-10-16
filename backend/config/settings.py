@@ -69,18 +69,19 @@ ASGI_APPLICATION = 'config.asgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'mysql.connector.django',
+        'ENGINE': 'django.db.backends.mysql',
         'NAME': os.getenv('DB_NAME', 'driver_logbook'),
-        'USER': os.getenv('DB_USER', 'root'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '3306'),
+        'USER': os.getenv('DB_USER', 'logbook_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'soeVpvzdt6QkM95i'),
+        'HOST': os.getenv('DB_HOST', 'driver_logbook-us-southeast-18421.kloudbeansite.com'),
+        'PORT': os.getenv('DB_PORT', '33096'),
         'OPTIONS': {
             'charset': 'utf8mb4',
+            'connect_timeout': 300,   # Timeout in seconds (5 minutes)
+            'init_command': "SET SESSION wait_timeout=28800, SESSION interactive_timeout=28800",
         }
     }
 }
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
