@@ -147,6 +147,28 @@ else:
 
 CORS_ALLOW_CREDENTIALS = True
 
+CORS_ALLOW_HEADERS = list(default_headers := [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+])
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+
 HOURS_LIMIT_8_DAYS = 70
 REFUEL_MILES_LIMIT = 1000
 PICKUP_TIME_HOURS = 1
