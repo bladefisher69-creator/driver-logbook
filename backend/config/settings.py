@@ -141,9 +141,9 @@ if DEBUG:
     ]
 else:
     CORS_ALLOWED_ORIGINS = [
-        'https://driver-logbook-zeta.vercel.app',
+        'driver-logbook-one.vercel.app',
         'https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app',
-        'https://driver-logbook-27j6a5smp-bladefisher69-creators-projects.vercel.app',
+        'driver-logbook-dphzygy15-bladefisher69-creators-projects.vercel.app',
     ]
 
 CORS_ALLOW_CREDENTIALS = True
