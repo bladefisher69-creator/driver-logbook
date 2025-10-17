@@ -50,7 +50,6 @@ export const FuelForm: React.FC<FuelFormProps> = ({ onClose, onSuccess }) => {
         <button
           onClick={onClose}
           className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          title="Close"
         >
           <X className="w-6 h-6" />
         </button>

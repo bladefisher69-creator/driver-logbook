@@ -1,0 +1,1307 @@
+Prompt for adding Routing + ELD features (deliverable-ready)
+
+You are an experienced full-stack Django + React developer. You will add routing (map + turn-by-turn) and ELD-style daily log generation to the existing repository. Work directly in the codebase, create a feature branch, and produce incremental commits with clear messages. If you must make assumptions, pick reasonable defaults, implement them, and document the assumptions in a new docs/ELD_FEATURE.md file.
+
+Repo / environment context (use these exact values)
+
+Backend: Python 3.13, Django 5.0.3, database MySQL (local XAMPP).
+
+Frontend: React + Vite.
+
+Models already present: Trip, FuelLog, Driver, and ComplianceReport.
+
+Seed command exists at logbook/management/commands/seed_data.py.
+
+Virtualenv is used; backend dev commands are python manage.py <command>.
+
+Frontend dev server is typical Vite (npm run dev / pnpm / yarn—detect and use existing script if present).
+
+Environment variables: .env is used. Provide OPENROUTESERVICE_API_KEY placeholder for routing.
+
+High-level goal
+
+Implement an MVP that:
+
+Produces a route (polyline + steps) between pickup and dropoff using a free routing provider.
+
+Displays the route on the frontend (Leaflet or MapLibre).
+
+Generates machine-readable daily ELD logs and an SVG/PDF-per-day sheet from trip events (driving, on-duty, off-duty, pickups/dropoffs, fuel).
+
+Implements backend endpoints and a frontend flow: TripForm → show route → generate and save daily logs → export SVG/PDF.
+
+Do this incrementally with the milestones defined below. Commit frequently and open a branch named feature/eld-routing. When done, open a PR (or produce a patch description) including a runbook for any API keys or setup.
+
+Implementation tasks (explicit, actionable)
+A — Config & dependencies
+
+Add new env var placeholders to README and .env.example:
+
+OPENROUTESERVICE_API_KEY=
+
+Backend pip packages: add (to requirements.txt) if not present:
+
+requests (for proxying), weasyprint or pyppeteer (pick one for server-side PDF if needed), django-rest-framework is already present.
+
+Frontend npm packages:
+
+leaflet, react-leaflet, and @types/leaflet (if using TypeScript).
+
+Add instructions in README.md / docs/ELD_FEATURE.md for API key placement and how to run the spike.
+
+B — Backend endpoints (implement)
+
+Create or update these files in logbook app:
+
+logbook/views_route.py (new)
+
+Endpoint: POST /api/route/
+
+Request JSON: { "origin": {"lat":..,"lng":..} | "address": "...", "destination": {...}, "profile": "driving-car" }
+
+Behavior: call the chosen routing provider (OpenRouteService directions) via the backend (use requests) and return {polyline, steps[], distance_meters, duration_seconds}. Cache result server-side for short time (optional simple in-memory cache/django cache).
+
+Error handling: return 400 for bad input and 502 if the provider fails.
+
+logbook/eld.py (new)
+
+Implement ELDGenerator class with:
+
+generate_daily_logs(driver, trip) → returns list of daily log JSON objects, each representing 24-hour windows, events (driving, on-duty, off-duty, rest, fuel) and totals.
+
+render_svg(daily_log_json) → returns an SVG string for a single day (24-hour grid, plotted driving periods, annotations).
+
+(Optional) render_pdf(svg_string) → server-side PDF generation (WeasyPrint or headless Chromium). If you implement, make this optional and document how to enable.
+
+The rules engine must use settings defaults:
+
+HOURS_LIMIT_8_DAYS (use existing setting), REFUEL_MILES_LIMIT (existing), PICKUP_TIME_HOURS, DROPOFF_TIME_HOURS.
+
+Use Decimal for numeric calculations relating to hours, miles, and fuel.
+
+logbook/views_eld.py (new)
+
+Endpoint: POST /api/eld/generate/
+
+Input: { "driver_id": <id>, "trip_id": <id> } or full trip payload.
+
+Output: { "daily_logs": [...], "svg_urls": [...], "pdf_urls": [...] } (if PDF rendering implemented).
+
+Persist generated daily logs in ComplianceReport or create a new model DailyLog (if convenient, create migration). If you create a new model, add migrations.
+
+Wire endpoints into logbook/urls.py and top-level config/urls.py.
+
+C — Frontend components
+
+Add these components (TypeScript preferred if repo uses TS):
+
+src/components/map/TripRouteMap.tsx
+
+Inputs: origin/destination coords (and optional polyline).
+
+Uses React-Leaflet to render base tiles and polyline.
+
+Displays a step list (turn-by-turn) from API response.
+
+Fallback UI when route cannot be generated (show error message).
+
+src/components/eld/ELDLogSheet.tsx
+
+Accepts a daily_log_json prop and renders an SVG in DOM (24-hour timeline, colored bands for driving/on-duty/off-duty/rest, fuel pins and odometer).
+
+Offer an "Export as SVG" button (download) and "Export PDF" button that POSTs SVG to backend for PDF render if backend supports it.
+
+Integrate into TripForm.tsx and TripsPage.tsx
+
+Add a "Show Route" button inside TripForm that calls POST /api/route/, shows the TripRouteMap with route preview.
+
+Add a "Generate ELD" button that POSTs to /api/eld/generate/ and displays returned ELDLogSheet components (one per day) with export options.
+
+D — Seed / idempotency & tests
+
+Update logbook/management/commands/seed_data.py to be idempotent using get_or_create and use Decimal for fuel/distance values (ensure quantize to 2 decimals).
+
+Add unit tests:
+
+logbook/tests/test_eld.py:
+
+Test ELDGenerator.generate_daily_logs() for a sample trip spanning multiple days and verify totals and flags (70h/8d and fuel).
+
+Test POST /api/route/ returns valid polyline and steps (mock external call).
+
+Use Django TestCase and mock external routing provider (patch requests.post or use responses library).
+
+E — Code quality and docs
+
+Code style: follow existing project style. Keep imports ordered. Use Decimal for money/consumption.
+
+Create docs/ELD_FEATURE.md describing:
+
+Where endpoints are, how to configure OPENROUTESERVICE_API_KEY.
+
+Frontend usage: how to show route and generate ELD.
+
+Any assumptions made (timezone handling, units = miles, etc.)
+
+Add migration files if you add a DailyLog model.
+
+Milestones & deliverables (commit-per-milestone)
+
+M1 — Route proxy endpoint + small frontend map component showing polyline + steps (commit + demo GIF or screenshot).
+
+M2 — ELD generator generate_daily_logs logic and a JSON endpoint; seed data plus unit tests for rules engine.
+
+M3 — ELD SVG renderer in frontend plus export-to-SVG and optional server-side PDF endpoint.
+
+M4 — UX polish: multi-day splitting, manual override hook, and README/docs.
+
+Aim to push M1 first (route spike) so we can validate routing before heavy ELD rendering.
+
+Acceptance criteria (how I will verify)
+
+POST /api/route/ with coords returns 200 and valid polyline + steps + distance_meters + duration_seconds.
+
+TripForm → Show Route displays a working Leaflet map with the route and steps.
+
+POST /api/eld/generate/ returns daily log JSON for a trip and SVG render is viewable in browser.
+
+Unit tests pass: python manage.py test logbook (all ELD rules tests pass).
+
+python manage.py seed_data runs without errors on a fresh DB after python manage.py flush.
+
+Constraints & required behaviours
+
+Use OpenRouteService (ORS) as preferred default; implement provider abstraction so we can swap in OSRM or GraphHopper later.
+
+Do not commit real API keys. Use OPENROUTESERVICE_API_KEY in .env and read via os.getenv.
+
+All monetary/fuel/distance fields use Decimal and match DB DecimalField precision.
+
+Make seeding and endpoints idempotent where possible.
+
+Time zones: store Datetime in DB in UTC; render using driver timezone in frontend (if driver timezone not available, fall back to local browser timezone and document assumption).
+
+Reporting & PR checklist (when you submit)
+
+Branch: feature/eld-routing.
+
+PR description: summary of work, assumptions, list of files changed, migration instructions, how to set OPENROUTESERVICE_API_KEY locally, and how to test manually.
+
+Include sample curl requests for POST /api/route/ and POST /api/eld/generate/.
+
+Attach screenshots or short GIF demonstrating the route and one generated ELD SVG.
+
+Ensure python manage.py test passes.
+
+Add docs/ELD_FEATURE.md with runbook and config.
+
+If you run into ambiguous behavior
+
+Make reasonable default choices (document them). Prefer to implement and document rather than pause for clarification. Example: if a unit (miles vs km) is ambiguous, default to miles but add a settings flag USE_METRIC and document.
+
+Extra: sample API request formats to use in tests
+
+POST /api/route/
+
+{
+  "origin": {"lat": 43.0389, "lng": -87.9065},
+  "destination": {"lat": 41.8781, "lng": -87.6298},
+  "profile": "driving-car"
+}
+
+
+POST /api/eld/generate/
+
+{
+  "driver_id": 2,
+  "trip_id": 17
+}
+
+
+Return 200 examples:
+
+{
+  "polyline": "encoded_polyline_here",
+  "steps": [{"instruction": "Head north...", "distance": 1200, "duration": 60}, ...],
+  "distance_meters": 12345,
+  "duration_seconds": 3600
+}
+
+
+Go implement M1. Commit to feature/eld-routing and at the end of M1 push the branch and provide:
+
+a short demo GIF or screenshot,
+
+curl example for /api/route/,
+
+docs/ELD_FEATURE.md with placeholders for next milestones.
+
+If anything is unclear, don’t block: implement with reasonable defaults and document them in docs/ELD_FEATURE.md.
+
+Want me to convert this prompt into a compact “system + user” role style message (for running directly inside an automated agent), or generate the first PR body and commit message templates? Which would you like next?
+
+You said:
+act as  a prompt engineer and context engineer , and senior full stack engineer and system desinger. add to the promp that after implementing the agent ust run through the whole code base and make sure that the code does not have any bugs sytax, logical, or even runtime errors. it must comment and update the readme
+ChatGPT said:
+Thought for 7s
+
+Great — below is an upgraded, production-ready prompt you can hand to an agent (human or AI) that includes everything from the earlier spec plus the additional senior-engineer requirement you asked for: after implementing the features the agent must run a full codebase sweep (syntax, static analysis, type checks, unit/integration tests, runtime smoke tests), fix any issues found, add explanatory comments to changed code, and update the README (and docs/ELD_FEATURE.md) with setup/run instructions, assumptions, and a changelog.
+
+Copy/paste this entire block as the prompt you give the implementer/agent.
+
+Full prompt — implement routing + ELD features and fully validate & document the codebase
+
+You are an experienced prompt engineer, context engineer, senior full-stack engineer, and system designer. Your mission: implement routing (map + turn-by-turn) + ELD daily-log generation features into the existing Django + React repo and perform a complete codebase verification pass so the project is free of syntax, type, logical, and runtime errors. Add comments to code you change and update the README and docs/ELD_FEATURE.md. Work on a feature branch feature/eld-routing, commit incrementally with clear messages, and open a PR when done.
+
+Important final requirement: After implementing the features, you must run a full verification pipeline (static checks, type checks, unit tests, migrations, seed, frontend build, runtime smoke tests). Fix all issues found (syntax, linter, type, logical, or runtime), document any remaining known limitations in docs/ELD_FEATURE.md, and update README.md with setup/run/test instructions and a changelog of your changes.
+
+Repo context (use these exact assumptions)
+
+Backend: Python 3.13, Django 5.0.3, MySQL (local XAMPP).
+
+Frontend: React + Vite (TS if present).
+
+Existing models: Driver, Trip, FuelLog, ComplianceReport.
+
+Seed script: logbook/management/commands/seed_data.py.
+
+Use virtualenv and the project's existing package manager (pip/requirements.txt for backend; npm/yarn/pnpm for frontend).
+
+Do not commit secrets or real API keys. Use OPENROUTESERVICE_API_KEY env var placeholder.
+
+High-level objectives (must be satisfied)
+
+Implement route generation using a routing provider (prefer OpenRouteService) via a backend proxy endpoint.
+
+Display the route (polyline + steps) in the frontend using Leaflet/react-leaflet (or MapLibre if more appropriate).
+
+Implement ELD generator to compute daily logs from trip events and render per-day SVG sheets; optionally provide server-side PDF rendering (document how to enable).
+
+Expose REST endpoints for route and ELD generation.
+
+Make seed script idempotent and safe.
+
+Crucial: Run full codebase validation (static analysis, type checks, unit tests, runtime smoke tests, frontend build). Fix any issues discovered. Add comments in modified files and update the README/docs with clear runbook, assumptions, and changelog.
+
+Implementation details (explicit tasks)
+1) Config & dependencies
+
+Add .env.example placeholders for:
+
+OPENROUTESERVICE_API_KEY=
+
+Backend dependencies (add to requirements.txt if not present):
+
+requests (proxy), weasyprint or a headless-chrome PDF tool (pick one), pytest/pytest-django if not present, and any linting/type tools you choose (e.g., ruff, mypy) — document choices.
+
+Frontend dependencies:
+
+leaflet, react-leaflet, and @types/leaflet (if TypeScript).
+
+Update README.md and create docs/ELD_FEATURE.md placeholders immediately (documenting where keys go and run instructions).
+
+2) Backend endpoints & modules
+
+Create/update under logbook:
+
+logbook/views_route.py:
+
+POST /api/route/ — Input: origin/destination coords or addresses and profile. Proxy to OpenRouteService and return { polyline, steps[], distance_meters, duration_seconds }.
+
+Implement provider abstraction so ORS can be swapped later.
+
+Validate inputs and return clear error codes/messages.
+
+logbook/eld.py:
+
+Implement ELDGenerator with:
+
+generate_daily_logs(driver, trip) → list of JSON daily logs with events and aggregates.
+
+render_svg(daily_log_json) → produce SVG string per day (24-hour grid + plotted segments + annotations).
+
+render_pdf(svg_string) → optional, documented, set behind a toggle.
+
+Use Decimal everywhere for hours/fuel/distance. Use settings fallback via getattr(settings, ...).
+
+If new models are needed (e.g., DailyLog), add them and migrations. Keep schema changes minimal and justify them in docs/ELD_FEATURE.md.
+
+logbook/views_eld.py:
+
+POST /api/eld/generate/ — Input: { driver_id, trip_id } or trip payload. Output: generated daily log JSON and links to SVG/PDF (if server renders PDFs).
+
+Persist generated logs (e.g., ComplianceReport or DailyLog) when appropriate.
+
+Add urls to logbook/urls.py and config/urls.py.
+
+Error handling & idempotency: endpoints should be safe to call repeatedly — do not create duplicate persisted logs; return existing records when available.
+
+3) Frontend changes
+
+src/components/map/TripRouteMap.tsx:
+
+Render Leaflet base map, route polyline, start/end markers, and list of steps.
+
+Accept polyline or call /api/route/.
+
+src/components/eld/ELDLogSheet.tsx:
+
+Input: daily_log_json. Render an interactive SVG 24-hour grid showing driving/onduty/offduty/rest blocks, fuel pins, odometer, and highlights for rule violations.
+
+Provide "Export SVG" (download) and "Export PDF" (POST to backend render endpoint or client-side conversion fallback).
+
+Integrate into TripForm.tsx / TripsPage.tsx:
+
+"Show Route" button triggers route generation and map preview.
+
+"Generate ELD" button triggers /api/eld/generate/ and displays returned daily logs and ELD sheets.
+
+4) Seed & idempotency
+
+Make seed_data.py idempotent via get_or_create.
+
+Ensure all numeric seed values use Decimal (quantized to 2 decimals).
+
+Ensure python manage.py seed_data works on a fresh DB after flush and will not crash on reruns.
+
+5) Tests
+
+Add unit tests in logbook/tests/test_eld.py:
+
+Test the rules engine for 70h/8d using seeded trips (expected exceed/warning/compliant).
+
+Test refuel checks (miles since last fuel).
+
+Mock external routing API to test /api/route/ returns expected structure.
+
+Ensure test coverage for new modules — at least basic happy-path tests.
+
+6) Docs, comments, and README
+
+Add or update docs/ELD_FEATURE.md:
+
+Feature overview, assumptions, env vars, provider config, how to run the spike, and known limitations.
+
+Update README.md:
+
+Setup commands (virtualenv, pip install, DB setup, creating DB user and granting privileges), running migrations, seeding, how to get and set OPENROUTESERVICE_API_KEY, how to run backend + frontend dev servers, how to run tests and linters, and how to generate ELDs.
+
+Add inline comments in all modified files for non-obvious logic (explain ELD splitting logic, timezone assumptions, Decimal usage).
+
+Full verification sweep (mandatory, fix all issues)
+
+After code changes, run this verification sequence and fix all issues that appear. Do not ship with failing steps. Record exact commands you ran and results in docs/ELD_FEATURE.md.
+
+Backend checks
+
+Syntax / compile:
+
+Run: python -m compileall . (fix syntax errors)
+
+Django checks:
+
+Run: python manage.py check — fix reported problems.
+
+Migrations:
+
+Run: python manage.py makemigrations (if you added models), python manage.py migrate — ensure migrations succeed and DB schema matches models.
+
+Unit tests:
+
+Run: python manage.py test (or pytest if used) — tests must pass.
+
+Linter / style / types (choose tools available; if none, install lightweight):
+
+Run ruff/flake8 and fix reported issues.
+
+Run mypy (if Type hints present) and fix type errors.
+
+Runtime smoke test:
+
+Start backend dev server: python manage.py runserver and confirm GET / or an API root returns 200.
+
+Run sample curl for /api/route/ (use mocked input if API key not available; handle 502 gracefully).
+
+Seed:
+
+Run: python manage.py flush then python manage.py migrate then python manage.py seed_data — seed must succeed without errors.
+
+Frontend checks
+
+TypeScript compile:
+
+Run pnpm build / npm run build or tsc depending on project. Fix TS errors.
+
+Lint & formatting:
+
+Run eslint or prettier as project uses; fix issues.
+
+Dev-run:
+
+Start dev server and validate TripForm integration:
+
+Using the route endpoint, ensure the map loads and polyline is rendered.
+
+Build:
+
+Run production build and ensure build succeeds without errors.
+
+Integration smoke tests
+
+Using a running backend and frontend (locally):
+
+Create a new trip in UI, click "Show Route", verify the route appears.
+
+Click "Generate ELD", verify daily logs are returned and rendered (SVG visible).
+
+Export SVG and attempt to render as PDF (if server-side PDF implemented).
+
+Acceptance pass criteria (must all be true)
+
+python manage.py check returns no errors.
+
+python manage.py test returns all tests passing.
+
+Backend makemigrations/migrate succeed with no errors.
+
+python manage.py seed_data runs successfully on a clean DB after flush.
+
+Frontend npm run build (or equivalent) completes with zero TypeScript/lint errors.
+
+Manual smoke tests (route rendering + ELD generation + export) succeed.
+
+No runtime exceptions appear in server logs during the smoke tests.
+
+All changed files include concise inline comments explaining complex logic.
+
+README.md and docs/ELD_FEATURE.md are updated with clear setup and run instructions, and a changelog entry describing files changed and assumptions.
+
+Branching, commits & PR
+
+Branch: feature/eld-routing.
+
+Commit messages: small, focused commits per milestone (e.g., feat(route): add /api/route proxy, feat(eld): add ELDGenerator basic logic, fix(seed): make seed_data idempotent, test(eld): add rules engine tests, docs: add ELD_FEATURE.md and README updates).
+
+PR description must include:
+
+Summary of changes and files modified.
+
+How to run the feature locally (env vars, DB setup).
+
+Acceptance checklist (above) and evidence (screenshots/GIFs and sample curl commands).
+
+Any known issues and how to reproduce them (if any remain).
+
+If you must make assumptions
+
+Default to miles for distance and gallons for fuel unless detected otherwise; expose a USE_METRIC or DISTANCE_UNIT setting for later change.
+
+Store datetimes in UTC in DB; show in local timezone on frontend. Document this clearly.
+
+If ORS quota is not available during tests, mock the responses for unit tests and provide a small set of canned sample responses in tests/fixtures/ for offline verification.
+
+Deliver M1 first (route spike)
+
+Implement POST /api/route/ and TripRouteMap component, and make a demo commit and PR draft with:
+
+A screenshot or short GIF showing route preview.
+
+A sample curl for /api/route/.
+
+docs/ELD_FEATURE.md entry describing how to set ORS key and test route.
+
+Then continue to M2..M4 as described earlier.
+
+Final note — absolute requirements
+
+Do not commit real API keys or credentials.
+
+Do fix every issue discovered during the verification sweep; if something cannot be fully fixed (e.g., missing external resource), document the limitation and the exact steps to reproduce, plus a mitigation.
+
+Add comments to all changed modules explaining high-level intent and non-obvious logic.
+
+Update README.md and docs/ELD_FEATURE.md with a thorough runbook, changelog, and developer notes.
+
+When you finish M1, push the branch feature/eld-routing and provide a PR (or patch) with the deliverables described above. If you want, I can also generate the PR body and a checklist file for you to paste into the PR description. Which would you like next?
+
+You said:
+can you be a bit more detailed 
+ChatGPT said:
+Thought for 7s
+
+Great — I expanded the prompt into a much more detailed, actionable spec you can hand to an agent (human or AI). It includes concrete file templates, example code snippets, exact API contracts, test skeletons, verification commands, expected responses, SVG layout suggestions, error handling, CI checklist, PR template, and troubleshooting steps. Use this as the single authoritative instruction set.
+
+Detailed implementation spec — routing + ELD features + full verification
+1) Tiny overview / goal
+
+Implement a route proxy + frontend map preview and an ELD generation pipeline (rules engine → daily logs JSON → per-day SVG → optional PDF). Add endpoints, frontend components, tests, docs. After code changes, run a full verification sweep (lint, type checks, unit tests, db migrations, seed, build, runtime smoke tests). Fix all issues and update README and docs/ELD_FEATURE.md.
+
+2) Exact API contracts (examples you must implement)
+POST /api/route/
+
+Request JSON:
+
+{
+  "origin": {"lat": 43.0389, "lng": -87.9065},
+  "destination": {"lat": 41.8781, "lng": -87.6298},
+  "profile": "driving-car",      // optional, default "driving-car"
+  "preference": "fastest"        // optional
+}
+
+
+Response (200):
+
+{
+  "polyline": "<encoded_polyline_or_geojson>",
+  "geometry": { "type": "LineString", "coordinates": [[lng,lat], ...] }, // optional
+  "steps": [
+    {"instruction": "Turn right onto X", "distance_m": 120, "duration_s": 20},
+    ...
+  ],
+  "distance_m": 12345,
+  "duration_s": 3600,
+  "provider": "openrouteservice"
+}
+
+
+Errors:
+
+400 for invalid input
+
+502 if provider fails
+
+429 for rate limit (forward provider message)
+
+POST /api/eld/generate/
+
+Request JSON:
+
+{
+  "driver_id": 2,
+  "trip_id": 17,
+  "render_pdf": false   // optional
+}
+
+
+Response (200):
+
+{
+  "daily_logs": [
+    {
+      "date": "2025-10-13",
+      "events": [
+        {"type": "driving", "start": "2025-10-13T08:00:00Z", "end": "2025-10-13T12:30:00Z"},
+        {"type": "on_duty", "start": "...", "end": "..."},
+        {"type": "rest", ...}
+      ],
+      "total_driving_hours": 4.5,
+      "total_on_duty_hours": 6.0,
+      "miles": 250,
+      "violations": ["70h/8d-warning"]
+    }, ...
+  ],
+  "svg_urls": ["https://.../eld/day-2025-10-13.svg"],
+  "pdf_urls": []  // if render_pdf true
+}
+
+3) Backend — file templates & snippets
+3.1 logbook/views_route.py
+
+Use Django REST Framework (DRF) APIView example:
+
+# logbook/views_route.py
+import os
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+
+ORS_API_KEY = os.getenv("OPENROUTESERVICE_API_KEY", "")
+
+class RouteView(APIView):
+    def post(self, request):
+        origin = request.data.get("origin")
+        destination = request.data.get("destination")
+        profile = request.data.get("profile", "driving-car")
+
+        if not origin or not destination:
+            return Response({"detail": "origin and destination required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build ORS request
+        coords = [[origin["lng"], origin["lat"]], [destination["lng"], destination["lat"]]]
+        url = "https://api.openrouteservice.org/v2/directions/{}/geojson".format(profile)
+        headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
+        payload = {"coordinates": coords, "instructions": True}
+
+        try:
+            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            return Response({"detail": "Routing provider error", "error": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        except requests.exceptions.RequestException as e:
+            return Response({"detail": "Routing provider unreachable", "error": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        data = r.json()
+        # Parse steps/distance/duration
+        features = data.get("features", [])
+        if not features:
+            return Response({"detail": "No route returned"}, status=status.HTTP_502_BAD_GATEWAY)
+        props = features[0]["properties"]
+        segments = props.get("segments", [])
+        steps = []
+        distance = props.get("summary", {}).get("distance", 0)
+        duration = props.get("summary", {}).get("duration", 0)
+        for seg in segments:
+            for st in seg.get("steps", []):
+                steps.append({
+                    "instruction": st.get("instruction"),
+                    "distance_m": st.get("distance"),
+                    "duration_s": st.get("duration"),
+                })
+        geometry = features[0]["geometry"]
+
+        return Response({
+            "polyline": None,  # optionally encode to polyline
+            "geometry": geometry,
+            "steps": steps,
+            "distance_m": distance,
+            "duration_s": duration,
+            "provider": "openrouteservice",
+        })
+
+
+Wire into logbook/urls.py:
+
+from django.urls import path
+from .views_route import RouteView
+
+urlpatterns = [
+    path('route/', RouteView.as_view(), name='api-route'),
+    ...
+]
+
+3.2 logbook/eld.py — ELDGenerator skeleton
+
+Key functions: generate daily JSON, render SVG, optional render PDF.
+
+# logbook/eld.py
+from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+from django.conf import settings
+
+class ELDGenerator:
+    def __init__(self, driver, trip):
+        self.driver = driver
+        self.trip = trip
+
+    def _split_into_days(self, start_dt, end_dt):
+        # returns list of (day_start, day_end) windows in UTC
+        days = []
+        cur = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        while cur < end_dt:
+            days.append((cur, cur + timedelta(days=1)))
+            cur += timedelta(days=1)
+        return days
+
+    def generate_daily_logs(self):
+        # gather trip events (driving intervals, pickup/dropoff, fuel logs)
+        # produce a per-day JSON with events and aggregates
+        start = self.trip.start_time
+        end = self.trip.end_time or start
+        day_windows = self._split_into_days(start, end)
+        daily_logs = []
+        for day_start, day_end in day_windows:
+            # compute overlap of trip driving with this day
+            driving_start = max(start, day_start)
+            driving_end = min(end, day_end)
+            events = []
+            if driving_end > driving_start:
+                events.append({"type": "driving", "start": driving_start.isoformat(), "end": driving_end.isoformat()})
+            # add pickup/dropoff/on_duty/rest based on business rules
+            total_driving_hours = (driving_end - driving_start).total_seconds() / 3600 if driving_end > driving_start else 0
+            daily_logs.append({
+                "date": day_start.date().isoformat(),
+                "events": events,
+                "total_driving_hours": round(Decimal(str(total_driving_hours)), 2),
+                "total_on_duty_hours": round(Decimal(str(total_driving_hours)), 2)
+            })
+        # run compliance checks across generated days (70/8 rule)
+        return daily_logs
+
+    def render_svg(self, daily_log):
+        # Build an SVG string drawing a 24-hour grid (e.g., width=800, height=200)
+        # draw rectangles for events (driving=red, on_duty=orange, off_duty=grey)
+        # annotate fuel pins and odometer
+        svg_parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300">']
+        # paint background grid, hour labels, etc.
+        # For each event, compute x,y,width for the rectangle.
+        svg_parts.append("</svg>")
+        return "".join(svg_parts)
+
+    def render_pdf(self, svg_string):
+        # optional; convert svg to pdf (weasyprint or headless chrome)
+        pass
+
+
+Document assumptions and algorithms in docs/ELD_FEATURE.md.
+
+4) Frontend — components & code skeletons
+4.1 src/components/map/TripRouteMap.tsx (React functional component)
+
+Use react-leaflet:
+
+import React from 'react';
+import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+
+type Props = {
+  geometry?: any; // GeoJSON LineString
+  steps?: Array<{instruction: string, distance_m: number, duration_s: number}>;
+  origin?: {lat:number, lng:number};
+  destination?: {lat:number, lng:number};
+};
+
+export default function TripRouteMap({ geometry, steps, origin, destination }: Props) {
+  const center = origin || (geometry && { lat: geometry.coordinates[0][1], lng: geometry.coordinates[0][0] }) || { lat: 0, lng: 0 };
+  const latlngs = geometry ? geometry.coordinates.map((c: any)=>[c[1], c[0]]) : [];
+
+  return (
+    <div style={{height: 400}}>
+      <MapContainer center={center} zoom={8} style={{height: '100%'}}>
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {latlngs.length>0 && <Polyline positions={latlngs} />}
+        {origin && <Marker position={[origin.lat, origin.lng]}><Popup>Origin</Popup></Marker>}
+        {destination && <Marker position={[destination.lat, destination.lng]}><Popup>Destination</Popup></Marker>}
+      </MapContainer>
+      <div>
+        <h4>Steps</h4>
+        <ol>
+          {steps?.map((s, i) => <li key={i}>{s.instruction} ({(s.distance_m/1000).toFixed(2)} km)</li>)}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+
+Integration: TripForm should call the backend /api/route/, store geometry + steps in state and pass to TripRouteMap.
+
+4.2 src/components/eld/ELDLogSheet.tsx
+
+Render daily log JSON into an SVG. Approach: map 24 hours to a fixed width (e.g., 24 * 30 px = 720px).
+
+import React from 'react';
+
+type Event = { type: string, start: string, end: string }; // ISO strings
+type DailyLog = { date: string, events: Event[], total_driving_hours: number };
+
+export default function ELDLogSheet({ dailyLog }: { dailyLog: DailyLog }) {
+  const width = 720;
+  const hourWidth = width / 24;
+  const renderRect = (e: Event, color: string) => {
+    const start = new Date(e.start);
+    const end = new Date(e.end);
+    const startHour = start.getHours() + start.getMinutes()/60;
+    const endHour = end.getHours() + end.getMinutes()/60;
+    const x = startHour * hourWidth;
+    const w = Math.max((endHour - startHour) * hourWidth, 1);
+    return <rect x={x} y={20} width={w} height={40} fill={color} stroke="black" />;
+  };
+
+  return (
+    <div>
+      <svg width={width+40} height={200}>
+        <text x="10" y="15">{dailyLog.date}</text>
+        {/* Hour labels */}
+        {[...Array(24)].map((_, i) => <text key={i} x={10 + i*hourWidth} y={18} fontSize={8}>{i}</text>)}
+        {/* Events */}
+        {dailyLog.events.map((e, i) => renderRect(e, e.type === 'driving' ? 'red' : 'grey'))}
+      </svg>
+      <div>Total driving: {dailyLog.total_driving_hours} hrs</div>
+    </div>
+  );
+}
+
+
+Export buttons: implement a simple download(svgString, filename) helper and a POST to /api/eld/render_pdf/ if available.
+
+5) Seed script (idempotent) — logbook/management/commands/seed_data.py snippet
+from django.core.management.base import BaseCommand
+from logbook.models import Driver, Trip, FuelLog
+from decimal import Decimal
+import random
+
+class Command(BaseCommand):
+    def handle(self, *args, **kwargs):
+        admin, created = Driver.objects.get_or_create(
+            username='admin',
+            defaults={'email': 'admin@example.com', 'license_number': 'ADM001', 'is_admin': True}
+        )
+        if created:
+            admin.set_password('admin123'); admin.save()
+
+        drivers = [
+            {'username':'john_doe','license_number':'DL123456'},
+            ...
+        ]
+        for dd in drivers:
+            d, created = Driver.objects.get_or_create(
+                username=dd['username'],
+                defaults={'license_number': dd['license_number'], 'email': f"{dd['username']}@example.com"}
+            )
+            if created: d.set_password('driver123'); d.save()
+
+        # create trips and fuel logs ensuring Decimal values
+        trip = Trip.objects.create(..., distance=Decimal('215.00'), ...)
+        FuelLog.objects.create(..., fuel_amount=Decimal('75.00'), fuel_cost=Decimal('200.00'), odometer_reading=Decimal('60000'))
+
+6) Tests — skeletons & examples
+6.1 Unit test for route view (mocking requests)
+
+logbook/tests/test_route.py:
+
+from django.test import TestCase
+from django.urls import reverse
+from unittest.mock import patch
+
+class RouteViewTest(TestCase):
+    @patch('logbook.views_route.requests.post')
+    def test_route_success(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "features": [{"properties":{"summary":{"distance":1000,"duration":600}},"geometry":{"coordinates":[[-87.9,43.0],[-87.6,41.8]]}}]
+        }
+        resp = self.client.post(reverse('api-route'), {"origin":{"lat":43.0389,"lng":-87.9065},"destination":{"lat":41.8781,"lng":-87.6298}}, content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('distance_m', data)
+
+6.2 Tests for rules engine
+
+logbook/tests/test_eld.py:
+
+from django.test import TestCase
+from logbook.eld import ELDGenerator
+from django.utils import timezone
+from decimal import Decimal
+
+class ELDRulesTest(TestCase):
+    def test_generate_daily_logs_basic(self):
+        # build driver and trip objects (create via model factories or create directly)
+        # run ELDGenerator.generate_daily_logs and assert structure and sums
+        pass
+
+7) Full verification commands (run these locally / CI)
+Backend
+# activate venv
+python -m pip install -r requirements.txt
+
+# syntax
+python -m compileall .
+
+# django checks
+python manage.py check
+
+# makemigrations only if model changed
+python manage.py makemigrations
+python manage.py migrate
+
+# run tests
+python manage.py test
+
+# run a simple server smoke test
+python manage.py runserver --noreload 8000
+
+# in another terminal curl test route (replace ORS key or mock)
+curl -X POST http://127.0.0.1:8000/api/route/ -H "Content-Type: application/json" -d '{"origin":{"lat":43.0,"lng":-87.9},"destination":{"lat":41.8,"lng":-87.6}}'
+
+Frontend
+# install
+npm install   # or pnpm install / yarn
+
+# lint and type check (adjust to project's scripts)
+npm run lint
+npm run build
+npm run dev   # to run locally
+
+# test manual flow in browser:
+# - Create Trip, Show Route, Generate ELD
+
+CI additions (optional)
+
+Add a workflow that runs python -m compileall ., python manage.py check, python manage.py test, npm ci && npm run build.
+
+Fail the pipeline for lint or tests errors.
+
+8) SVG layout guidance (practical)
+
+Canvas width: 720–1000px; height 200–300px.
+
+X mapping: 24 hours → width. Compute x = (hour + minute/60) * hour_width.
+
+Y rows: single row for day (or stacked rows for different types).
+
+Colors: driving=red, on-duty=orange, off-duty=gray, rest=green.
+
+Include header: driver name, date, total driving hours, violation icons.
+
+Add small fuel icon (circle) at appropriate x coordinate for fuel events.
+
+9) Logging, metrics & caching
+
+Add logging statements in route view and ELD generator; include provider response status and any parsing errors.
+
+Add a simple TTL cache for route responses (in-memory or Django cache) keyed by origin|destination|profile to avoid hitting ORS repetitively during development.
+
+10) PR template & checklist (use for the PR)
+
+Title: feature: ELD routing — /api/route, ELD generator, frontend map + ELD SVG
+
+Description: Short summary, files changed, outline of architecture and decisions, instructions to test locally.
+
+Checklist (must be green before merge):
+
+ Branch: feature/eld-routing
+
+ python manage.py check passes
+
+ python manage.py test passes
+
+ python manage.py makemigrations not required or migrations included
+
+ Frontend npm run build passes
+
+ docs/ELD_FEATURE.md created and README updated
+
+ Screenshots/GIFs attached (route map + one ELD SVG)
+
+ No secrets committed
+
+Sample PR body snippet for usage:
+
+## How to test
+1. Set `OPENROUTESERVICE_API_KEY` in .env (or mock routing calls; refer to tests/fixtures).
+2. Run migrations: python manage.py migrate
+3. Seed: python manage.py seed_data
+4. Start backend: python manage.py runserver
+5. Start frontend: npm run dev
+6. Create a trip in UI, click "Show Route", then "Generate ELD".
+
+11) Troubleshooting guide (common errors and how to fix)
+
+1265 Data truncated: seed values used floats — ensure Decimal quantized to 2 decimals.
+
+Duplicate entry: seed script using create_user — switch to get_or_create.
+
+Unknown MySQL host 'db': DB_HOST env var default was 'db' (for Docker). Set to 127.0.0.1 for local XAMPP.
+
+OpenRouteService 401: API key missing or invalid — set OPENROUTESERVICE_API_KEY or mock calls in tests.
+
+Leaflet map blank: ensure CSS import import 'leaflet/dist/leaflet.css' and tile URL accessible.
+
+12) Final deliverable expectations from agent
+
+Branch feature/eld-routing pushed.
+
+Commits per milestone.
+
+PR opened with checklist completed and demo assets attached.
+
+README.md and docs/ELD_FEATURE.md updated with runbook, env vars, and changelog.
+
+All tests pass, lint/type checks clean, build works, seed script runs on flushed DB.
+
+All changed files have inline comments explaining logic and caveats.
+
+If you want, I’ll now:
+
+produce a compact system/user message version of this spec suitable for feeding to an automated code-writing agent, or
+
+generate the first PR body + commit message templates and a pre-made docs/ELD_FEATURE.md file content for you to paste into the repo.
+
+Which of those two would you like next?
+
+You said:
+do both
+ChatGPT said:
+
+Nice — below are both artifacts you asked for:
+
+A compact system + user prompt (ready to paste into an automated agent / code-writing model).
+
+A ready-to-use first PR body, commit message templates for milestones, and a full docs/ELD_FEATURE.md you can drop into the repo.
+
+I kept the system/user prompt compact but complete (constraints, acceptance criteria, required checks). The PR body and docs are copy-paste-ready.
+
+1) Compact system + user prompt (for an automated agent)
+
+Use this exactly: put the System block as the agent's system prompt and the User block as the task. It’s concise, prescriptive, and enforces the verification sweep and docs requirement.
+
+SYSTEM:
+You are a senior full-stack engineer and system designer with deep experience in Django (Python 3.13 / Django 5), REST APIs, React + Vite, mapping (Leaflet/MapLibre), routing APIs (OpenRouteService/OSRM), and ELD/business rules. Work on branch: feature/eld-routing. Commit incrementally and open a PR when M1 is complete. You MUST not commit secrets. After implementing features you MUST run a full verification sweep: syntax checks, Django checks, makemigrations/migrate, unit tests, seed, frontend build, and runtime smoke tests. Fix any syntax, lint, type, logic, or runtime errors you find. Add inline comments to changed code and update README.md and docs/ELD_FEATURE.md. Use Decimal for monetary/fuel/distance values. Store datetimes in UTC. Default units: miles and gallons. Use OPENROUTESERVICE_API_KEY env var placeholder. If anything is ambiguous, choose sensible defaults and document them in docs/ELD_FEATURE.md. Provide screenshots/GIFs or logs for M1.
+
+USER:
+Task: implement MVP routing + ELD generation in the existing repo and run full verification.
+Deliver M1 first: backend route proxy and frontend map preview.
+
+Requirements (M1):
+- Add POST /api/route/ that proxies to OpenRouteService directions.
+  - Input: { origin:{lat,lng}, destination:{lat,lng}, profile? }.
+  - Output: { geometry (GeoJSON LineString), steps[], distance_m, duration_s, provider }.
+  - 400 on bad input, 502 on provider failure.
+- Add TripRouteMap frontend component using react-leaflet to render geometry and steps.
+- Integrate "Show Route" in TripForm to call /api/route/ and display TripRouteMap.
+
+Global requirements:
+- Add OPENROUTESERVICE_API_KEY to .env.example (no real keys).
+- Use Decimal for DecimalField values in seed and elsewhere.
+- Make seed_data idempotent via get_or_create.
+- Add unit tests for /api/route/ (mock provider) and basic ELD generator skeleton.
+- Run verification sequence and fix everything:
+  - python -m compileall .
+  - python manage.py check
+  - python manage.py makemigrations && python manage.py migrate
+  - python manage.py test
+  - python manage.py flush && python manage.py seed_data
+  - npm install && npm run build (or project's equivalent)
+  - Start backend and frontend and perform manual smoke tests: create trip -> Show Route -> Generate ELD (if implemented).
+- Update README.md and create docs/ELD_FEATURE.md with runbook, assumptions, and changelog.
+- Commit messages per milestone and push branch feature/eld-routing.
+
+Acceptance (M1):
+- /api/route/ returns geometry + steps for a valid request.
+- TripRouteMap displays route polyline and step list.
+- All tests and checks pass, seed runs, and README/docs updated with instructions for M1.
+
+Deliverables (for M1):
+- Branch feature/eld-routing with incremental commits.
+- Demo screenshot or GIF for route preview.
+- PR draft with checklist and sample curl calls.
+- docs/ELD_FEATURE.md and README updates.
+
+If you understand, start with M1 and push a commit that adds /api/route/ and TripRouteMap. Report success with screenshot/GIF and sample curl command.
+
+2) PR body + commit message templates + docs/ELD_FEATURE.md
+A — First PR body (paste into your PR)
+Title: feat: ELD routing — /api/route proxy + frontend route preview (M1)
+
+Summary
+-------
+This PR implements M1 of the ELD + routing feature:
+- Adds backend route proxy endpoint: POST /api/route/
+- Adds frontend TripRouteMap component (react-leaflet) and integrates "Show Route" in TripForm
+- Adds .env.example placeholder OPENROUTESERVICE_API_KEY
+- Seed script minor idempotency hardening
+- Basic unit test for route endpoint (mocks external provider)
+- docs/ELD_FEATURE.md and README.md updated with M1 run instructions
+
+Why
+---
+We need a routing spike to verify integration with routing providers and to enable frontend preview before building the ELD generator.
+
+Files changed (high level)
+--------------------------
+- backend: logbook/views_route.py, logbook/urls.py
+- frontend: src/components/map/TripRouteMap.tsx, TripForm integration
+- docs: docs/ELD_FEATURE.md, README.md
+- tests: logbook/tests/test_route.py
+- .env.example
+
+How to test locally (M1)
+------------------------
+1. Create virtualenv and install backend deps:
+   python -m venv venv && venv\Scripts\activate
+   python -m pip install -r requirements.txt
+
+2. Add ORS API key in .env (optional for real routing):
+   OPENROUTESERVICE_API_KEY=your_key_here
+   If not set, the endpoint will return 502 when proxying to ORS; tests mock the provider.
+
+3. Run migrations & seed:
+   python manage.py migrate
+   python manage.py flush --no-input
+   python manage.py seed_data
+
+4. Run backend:
+   python manage.py runserver
+
+5. Start frontend:
+   npm install
+   npm run dev
+
+6. Create a trip in the UI, click "Show Route" — the map should draw the polyline and show steps.
+
+Sample curl (mocked):
+curl -X POST http://127.0.0.1:8000/api/route/ \
+ -H "Content-Type: application/json" \
+ -d '{"origin":{"lat":43.0389,"lng":-87.9065},"destination":{"lat":41.8781,"lng":-87.6298}}'
+
+Expected response:
+{
+  "geometry": { "type": "LineString", "coordinates":[[lng,lat],...] },
+  "steps": [{"instruction":"Turn ...","distance_m":120,"duration_s":20}, ...],
+  "distance_m": 12345,
+  "duration_s": 3600,
+  "provider": "openrouteservice"
+}
+
+Checklist (M1)
+--------------
+- [ ] Branch: feature/eld-routing
+- [ ] /api/route/ implemented and tested (unit test)
+- [ ] TripRouteMap component added and integrated
+- [ ] README.md updated with M1 instructions
+- [ ] docs/ELD_FEATURE.md added
+- [ ] Demo screenshot/GIF attached
+
+Notes
+-----
+This PR is the first spike (M1). Next PRs will implement the ELD generator, SVG renderer, PDF export, compliance rules, multi-day splitting, and tests. See docs/ELD_FEATURE.md for details and assumptions.
+
+
+B — Commit message templates (use per milestone)
+
+M1 (route spike)
+
+feat(route): add /api/route proxy to OpenRouteService and TripRouteMap frontend
+- add logbook/views_route.py
+- add TripRouteMap component (react-leaflet)
+- wire TripForm "Show Route"
+- add .env.example OPENROUTESERVICE_API_KEY placeholder
+- add unit test for route view (mocked)
+
+
+M2 (ELD generator skeleton)
+
+feat(eld): add ELDGenerator skeleton and JSON endpoint /api/eld/generate/
+- add logbook/eld.py with generate_daily_logs and render_svg stubs
+- add logbook/views_eld.py and urls
+- add basic unit tests for ELDGenerator
+
+
+M3 (SVG & PDF render)
+
+feat(eld): implement ELD SVG renderer and optional PDF export
+- add frontend ELDLogSheet component
+- add backend svg->pdf endpoint (toggleable)
+- update docs and add sample exports
+
+
+M4 (polish + tests + CI)
+
+chore(tests/docs): add comprehensive tests, CI checks, docs and runbook
+- unit/integration tests for rules engine
+- add lint/type checks to CI
+- update README and docs/ELD_FEATURE.md
+
+
+Use short imperative sentences, include bullet of what changed in the commit.
+
+C — docs/ELD_FEATURE.md (drop into repo)
+
+Copy the entire file and add to docs/ELD_FEATURE.md.
+
+# ELD Feature — design, runbook, and assumptions
+
+Status
+------
+M1 implemented: route proxy + frontend preview.
+M2..M4 planned: ELD rules engine, SVG renderer, PDF export, UX polish, tests.
+
+Overview
+--------
+This feature adds:
+- Routing: backend proxy to OpenRouteService (POST /api/route/)
+- Frontend: TripRouteMap (react-leaflet) to preview route & steps
+- ELD generator: rules engine to split trips into daily logs (M2)
+- ELD renderer: per-day SVG and optional PDF export (M3)
+- Compliance: 70hrs / 8 days (HOURS_LIMIT_8_DAYS), refuel checks (REFUEL_MILES_LIMIT)
+
+Environment variables
+---------------------
+- OPENROUTESERVICE_API_KEY=      # required for real ORS calls (do not commit)
+- DB_... variables same as existing .env
+
+Units & Timezones
+-----------------
+- Distances default to **miles**.
+- Fuel default to **gallons**.
+- Datetimes stored in UTC. Frontend should present times in driver's local timezone (or browser timezone if driver tz is not set).
+- Settings:
+  - HOURS_LIMIT_8_DAYS (int, hours)
+  - REFUEL_MILES_LIMIT (int)
+  - PICKUP_TIME_HOURS, DROPOFF_TIME_HOURS
+
+How it works (high level)
+-------------------------
+1. User fills TripForm with origin & destination.
+2. Frontend POSTs to /api/route/ to get geometry + steps.
+3. TripRouteMap displays the polyline & step list (M1).
+4. When "Generate ELD" is clicked (M2+), frontend POSTs to /api/eld/generate/:
+   - Backend ELDGenerator builds daily JSON logs and performs compliance checks.
+   - Backend optionally renders SVG and PDF and returns URLs.
+5. Frontend displays per-day ELDLogSheet (SVG) and allows export.
+
+API reference (M1)
+------------------
+POST /api/route/
+- Request: { origin:{lat,lng}, destination:{lat,lng}, profile? }
+- Response: { geometry, steps[], distance_m, duration_s, provider }
+
+POST /api/eld/generate/ (M2)
+- Request: { driver_id, trip_id, render_pdf? }
+- Response: { daily_logs[], svg_urls[], pdf_urls[] }
+
+Development & verification (commands)
+------------------------------------
+# backend
+python -m venv venv
+venv\Scripts\activate
+python -m pip install -r requirements.txt
+python -m compileall .
+python manage.py check
+python manage.py makemigrations
+python manage.py migrate
+python manage.py flush --no-input
+python manage.py seed_data
+python manage.py test
+
+# frontend
+npm install
+npm run build   # or pnpm / yarn equivalent
+npm run dev
+
+Manual smoke test (M1)
+----------------------
+1. Start backend and frontend.
+2. Create a Trip in the UI.
+3. Click "Show Route" — map should display a polyline and step list.
+4. If ORS key is not set, /api/route/ will return 502; tests use mocked responses.
+
+Known issues & limitations
+--------------------------
+- ORS quota/rate limits: production requires an API key and possible caching.
+- ELD generator currently a skeleton (M2). M1 only supplies routing.
+- Units default to miles/gallons; set USE_METRIC in settings if you need km/liters.
+
+Files touched (M1)
+------------------
+- backend/logbook/views_route.py
+- backend/logbook/urls.py
+- frontend/src/components/map/TripRouteMap.tsx
+- frontend/TripForm integration
+- docs/ELD_FEATURE.md
+- .env.example
+
+Changelog (M1)
+--------------
+- YYYY-MM-DD: Implemented M1: /api/route proxy and TripRouteMap preview.
+
+Contact & next steps
+--------------------
+For next steps (M2): implement ELDGenerator.generate_daily_logs, backend ELD endpoint, and frontend ELDLogSheet. See top-level project issue #ELD-1 for backlog and acceptance tests.
+
+
+
+If you want I can now:

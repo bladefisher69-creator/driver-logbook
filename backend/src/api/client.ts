@@ -1,12 +1,4 @@
-// Normalize the base URL to ensure it includes /api so builds that set
-// VITE_API_BASE_URL without the /api suffix still call the correct backend
-// path. We intentionally keep the base URL without a trailing slash so
-// endpoints (which start with `/`) concatenate cleanly.
-const _rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-let API_BASE_URL = String(_rawBase).replace(/\/+$/, ''); // strip trailing slash(es)
-if (!/\/api(\/|$)/.test(API_BASE_URL)) {
-  API_BASE_URL = API_BASE_URL + '/api';
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean;

@@ -1,0 +1,9 @@
+backend/**
+backend/venv/**
+venv/**
+dist/**
+node_modules/**
+*.min.js
+**/*.min.js
+__pycache__/**
+.git/**
