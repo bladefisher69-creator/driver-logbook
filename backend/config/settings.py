@@ -151,6 +151,24 @@ else:
 
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF trusted origins - allow overriding via environment variable (comma-separated)
+raw_csrf_trusted = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if raw_csrf_trusted:
+    CSRF_TRUSTED_ORIGINS = [d.strip() for d in raw_csrf_trusted.split(',') if d.strip()]
+else:
+    # sensible defaults for known production frontends (adjust as needed)
+    CSRF_TRUSTED_ORIGINS = [
+        'https://driver-logbook-m7e5.vercel.app',
+    ]
+
+# Cookie security settings: Render terminates TLS at edge, so mark cookies secure in prod
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True') == 'True'
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True') == 'True'
+
+# SameSite handling: use 'None' for cross-site cookies (requires Secure=True)
+SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
+CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'None')
+
 # Add this right after CORS_ALLOWED_ORIGINS and CORS_ALLOW_CREDENTIALS
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'accept',
