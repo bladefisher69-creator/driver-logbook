@@ -339,3 +339,14 @@ MIT License
 ## Support
 
 For issues and questions, please open an issue on GitHub.
+
+## Deployment notes for Render (frontend)
+
+If you deploy the frontend on Render and the backend on a separate Render service, set the following environment variables for the frontend service:
+
+- BACKEND_URL = https://driver-logbook.onrender.com/
+- BACKEND_HOST = driver-logbook.onrender.com
+
+The Dockerfile copies `default.conf.template` into the image and nginx will substitute these environment variables at runtime to proxy API requests to the backend. The template strips the `/api/` prefix so frontend requests to `/api/auth/...` are forwarded as `/auth/...` to the backend.
+
+After deploying, run `scripts/check-deploy.sh` (or the curl commands listed below) to validate the setup.
