@@ -12,7 +12,26 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-this-in-prod
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+def _env_list(name: str, default: str = ''):
+    """Return a list from a comma-separated environment variable.
+    Example: 'a.com, b.com' -> ['a.com', 'b.com']
+    If the env var is empty, returns an empty list (or splits the default).
+    """
+    val = os.getenv(name, default)
+    if val is None:
+        return []
+    # If the entire value is a single '*', return ['*'] to allow wildcard
+    if val.strip() == '*':
+        return ['*']
+    return [p.strip() for p in val.split(',') if p.strip()]
+
+
+# ALLOWED_HOSTS: set via environment variable (comma-separated). Default to ['*'] if not provided.
+raw_allowed = os.getenv('ALLOWED_HOSTS', '*')
+if raw_allowed.strip() == '*':
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = _env_list('ALLOWED_HOSTS', raw_allowed)
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -138,16 +157,16 @@ SIMPLE_JWT = {
 }
 
 if DEBUG:
+    # Local dev origins for Vite
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
         'http://localhost:5174',
     ]
 else:
-    CORS_ALLOWED_ORIGINS = [
-        'https://driver-logbook-m7e5.vercel.app',
-        'https://driver-logbook-m7e5-git-main-bladefisher69-creators-projects.vercel.app',
-        'https://driver-logbook-m7e5-lteus73gy-bladefisher69-creators-projects.vercel.app'
-    ]
+    # Production origins should be provided via the CORS_ALLOWED_ORIGINS env var as a comma-separated list.
+    # Example (set on Render):
+    # CORS_ALLOWED_ORIGINS=https://app.yourdomain.com,https://driver-logbook-nine.vercel.app,https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app
+    CORS_ALLOWED_ORIGINS = _env_list('CORS_ALLOWED_ORIGINS', '')
 
 CORS_ALLOW_CREDENTIALS = True
 
