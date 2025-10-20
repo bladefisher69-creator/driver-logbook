@@ -1,0 +1,48 @@
+# Render service definitions for driver-logbook
+# See https://render.com/docs/render-yaml
+services:
+  - type: web
+    name: driver-logbook-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    repo: bladefisher69-creator/driver-logbook
+    branch: main
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "sh backend/entrypoint.sh"
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DEBUG
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  # Optional worker (uncomment and configure if you use Celery)
+  # - type: worker
+  #   name: driver-logbook-worker
+  #   env: python
+  #   region: oregon
+  #   plan: starter
+  #   repo: bladefisher69-creator/driver-logbook
+  #   branch: main
+  #   buildCommand: "pip install -r backend/requirements.txt"
+  #   startCommand: "celery -A config worker --loglevel=info"
+  #   autoDeploy: true

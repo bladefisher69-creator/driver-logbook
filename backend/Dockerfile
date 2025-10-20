@@ -1,3 +1,24 @@
+<<<<<<< HEAD
+﻿FROM node:20-alpine as builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+COPY default.conf.template /etc/nginx/conf.d/default.conf.template
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+=======
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
@@ -23,3 +44,4 @@ RUN chmod +x /app/entrypoint.sh || true
 EXPOSE 8000
 
 ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
+>>>>>>> 76a9566 (update)

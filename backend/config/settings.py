@@ -12,29 +12,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-this-in-prod
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-def _env_list(name: str, default: str = ''):
-    """Return a list from a comma-separated environment variable.
-    Example: 'a.com, b.com' -> ['a.com', 'b.com']
-    If the env var is empty, returns an empty list (or splits the default).
-    """
-    val = os.getenv(name, default)
-    if val is None:
-        return []
-    # If the entire value is a single '*', return ['*'] to allow wildcard
-    if val.strip() == '*':
-        return ['*']
-    return [p.strip() for p in val.split(',') if p.strip()]
-
-
-# ALLOWED_HOSTS: set via environment variable (comma-separated). Default to ['*'] if not provided.
-raw_allowed = os.getenv('ALLOWED_HOSTS', '*')
-if raw_allowed.strip() == '*':
-    ALLOWED_HOSTS = ['*']
-else:
-    ALLOWED_HOSTS = _env_list('ALLOWED_HOSTS', raw_allowed)
-
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -157,36 +135,18 @@ SIMPLE_JWT = {
 }
 
 if DEBUG:
-    # Local dev origins for Vite
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
         'http://localhost:5174',
     ]
 else:
-    # Production origins should be provided via the CORS_ALLOWED_ORIGINS env var as a comma-separated list.
-    # Example (set on Render):
-    # CORS_ALLOWED_ORIGINS=https://app.yourdomain.com,https://driver-logbook-nine.vercel.app,https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app
-    CORS_ALLOWED_ORIGINS = _env_list('CORS_ALLOWED_ORIGINS', '')
-
-CORS_ALLOW_CREDENTIALS = True
-
-# CSRF trusted origins - allow overriding via environment variable (comma-separated)
-raw_csrf_trusted = os.getenv('CSRF_TRUSTED_ORIGINS', '')
-if raw_csrf_trusted:
-    CSRF_TRUSTED_ORIGINS = [d.strip() for d in raw_csrf_trusted.split(',') if d.strip()]
-else:
-    # sensible defaults for known production frontends (adjust as needed)
-    CSRF_TRUSTED_ORIGINS = [
-        'https://driver-logbook-m7e5.vercel.app',
+    CORS_ALLOWED_ORIGINS = [
+        'https://driver-logbook-zeta.vercel.app',
+        'https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app',
+        'https://driver-logbook-27j6a5smp-bladefisher69-creators-projects.vercel.app',
     ]
 
-# Cookie security settings: Render terminates TLS at edge, so mark cookies secure in prod
-SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True') == 'True'
-CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True') == 'True'
-
-# SameSite handling: use 'None' for cross-site cookies (requires Secure=True)
-SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
-CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'None')
+CORS_ALLOW_CREDENTIALS = True
 
 # Add this right after CORS_ALLOWED_ORIGINS and CORS_ALLOW_CREDENTIALS
 CORS_ALLOW_HEADERS = list(default_headers) + [
