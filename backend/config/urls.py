@@ -17,10 +17,19 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+# 👇 Add a simple root route
+def home(request):
+    return JsonResponse({
+        "message": "Driver Logbook Backend is running ✅",
+        "docs": "/swagger/",
+        "health": "/healthz",
+        "api": "/api/"
+    })
+
 urlpatterns = [
+    path('', home),  # <--- This handles the root URL
     path('admin/', admin.site.urls),
     path('api/', include('logbook.urls')),
-    # Simple health endpoint for load balancers / health checks
     path('healthz', lambda request: JsonResponse({'status': 'ok'})),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
