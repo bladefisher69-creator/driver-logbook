@@ -146,6 +146,7 @@ else:
         'https://driver-logbook-27j6a5smp-bladefisher69-creators-projects.vercel.app',
         'https://driver-logbook-silk.vercel.app',
         'https://driver-logbook-6b2dvm5yo-bladefisher69-creators-projects.vercel.app',
+        'https://driver-logbook-1t3y.onrender.com',
     ]
 
 CORS_ALLOW_CREDENTIALS = True
