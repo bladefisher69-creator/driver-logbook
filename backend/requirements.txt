@@ -13,4 +13,5 @@ mysql-connector-python==8.1.0
 mysqlclient==2.2.7
 gunicorn==22.0.0
 drf-yasg==1.21.7
+django-filter
 
