@@ -22,3 +22,28 @@ dist-ssr
 *.sw?
 .env
 backend/.env
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.sqlite
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Django media and static
+media/
+staticfiles/
+
+# Local env variants
+.env.local
+.env.*
+
+# Logs
+logs/
