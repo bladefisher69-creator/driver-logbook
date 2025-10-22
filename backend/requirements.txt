@@ -9,11 +9,8 @@ channels-redis==4.0.0
 python-dotenv==1.0.0
 daphne==4.1.2
 mysql-connector-python==8.1.0
-<<<<<<< HEAD
+
 mysqlclient==2.2.7
 gunicorn==22.0.0
 drf-yasg==1.21.7
-=======
-mysqlclient==2.2.7
->>>>>>> 29cca70 (small fix)
 
