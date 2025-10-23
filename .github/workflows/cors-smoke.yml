@@ -1,0 +1,38 @@
+name: CORS smoke test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  check-cors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run CORS smoke check
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          FRONTEND_ORIGIN: ${{ secrets.FRONTEND_ORIGIN }}
+        run: |
+          # Use env-provided secrets; provide sensible defaults if not set
+          # (the env mapping above already sets BACKEND_URL and FRONTEND_ORIGIN)
+          if [ -z "$BACKEND_URL" ]; then
+            BACKEND_URL="https://driver-logbook-1t3y.onrender.com"
+          fi
+          if [ -z "$FRONTEND_ORIGIN" ]; then
+            FRONTEND_ORIGIN="https://driver-logbook-zeta.vercel.app"
+          fi
+          python tools/check_cors.py --url "$BACKEND_URL" --origin "$FRONTEND_ORIGIN"

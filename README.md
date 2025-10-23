@@ -350,3 +350,15 @@ If you deploy the frontend on Render and the backend on a separate Render servic
 The Dockerfile copies `default.conf.template` into the image and nginx will substitute these environment variables at runtime to proxy API requests to the backend. The template strips the `/api/` prefix so frontend requests to `/api/auth/...` are forwarded as `/auth/...` to the backend.
 
 After deploying, run `scripts/check-deploy.sh` (or the curl commands listed below) to validate the setup.
+
+Note for Windows PowerShell users: PowerShell defines `curl` as an alias for `Invoke-WebRequest`, which can behave differently.
+If you paste bash-style curl commands into PowerShell, explicitly call `curl.exe` or use `Invoke-WebRequest`.
+Example PowerShell-friendly forms:
+
+```powershell
+# Use the real curl executable when available
+curl.exe -I "https://driver-logbook.onrender.com/vite.svg"
+
+# Or use PowerShell's Invoke-WebRequest
+Invoke-WebRequest -Uri "https://driver-logbook.onrender.com/vite.svg" -Method Head
+```

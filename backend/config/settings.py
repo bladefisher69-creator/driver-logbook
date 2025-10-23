@@ -140,7 +140,8 @@ if DEBUG:
         'http://localhost:5174',
     ]
 else:
-    CORS_ALLOWED_ORIGINS = [
+    # Default static allowed origins (kept for safety).
+    DEFAULT_CORS_ORIGINS = [
         'https://driver-logbook-zeta.vercel.app',
         'https://driver-logbook-git-main-bladefisher69-creators-projects.vercel.app',
         'https://driver-logbook-27j6a5smp-bladefisher69-creators-projects.vercel.app',
@@ -151,9 +152,42 @@ else:
         'https://driver-logbook.onrender.com',
     ]
 
+    # Allow overriding or extending allowed origins via an environment variable
+    # CORS_ALLOWED_ORIGINS_ENV should be a comma-separated list of origins,
+    # e.g. "https://example.com,https://staging.example.com"
+    def _parse_env_origins(env_value: str | None):
+        if not env_value:
+            return []
+        return [o.strip() for o in env_value.split(',') if o.strip()]
+
+    env_origins = _parse_env_origins(os.getenv('CORS_ALLOWED_ORIGINS_ENV'))
+    # If a simple replacement is desired, set CORS_OVERRIDE_ALLOW_ALL to 'True'
+    # and provide CORS_ALLOWED_ORIGINS_ENV; otherwise, we merge defaults + env.
+    if os.getenv('CORS_OVERRIDE_ALLOW_ALL', 'False') == 'True' and env_origins:
+        CORS_ALLOWED_ORIGINS = env_origins
+    else:
+        # Merge defaults with env provided origins (env takes precedence for duplicates)
+        CORS_ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_CORS_ORIGINS + env_origins))
+
+# Allow credentials in cross-site requests (cookies, auth headers)
 CORS_ALLOW_CREDENTIALS = True
 
-# Add this right after CORS_ALLOWED_ORIGINS and CORS_ALLOW_CREDENTIALS
+# In addition to explicit origins, allow Vercel preview/deployment subdomains
+# using a regex. This is intentionally conservative: only allow https subdomains
+# of vercel.app. We also expose the primary render domain.
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/.*\.vercel\.app$",
+    r"^https:\/\/driver-logbook(?:-\w+)?\.onrender\.com$",
+]
+
+# Trusted origins for CSRF checks (mirrors the production allowed origins).
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.vercel.app",
+    "https://driver-logbook.onrender.com",
+    "https://driver-logbook-1t3y.onrender.com",
+]
+
+# Merge default CORS request headers with Django CORS defaults
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'accept',
     'accept-encoding',
@@ -166,6 +200,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-requested-with',
 ]
 
+# Allowed HTTP methods for CORS preflight
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
